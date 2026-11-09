@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مساعد كنز</title>
+<style>
+  :root { --bg:#f6f4ef; --card:#fff; --ink:#1d1b16; --muted:#6b665c; --brand:#0f6b5c; --brand-ink:#fff; --line:#e4e0d6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14130f; --card:#1f1d18; --ink:#f1ede4; --muted:#a39d90; --brand:#3fb8a2; --brand-ink:#0b1f1b; --line:#2e2b24; } }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 "Segoe UI", Tahoma, "Noto Naskh Arabic", system-ui, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:16px; display:flex; flex-direction:column; height:100dvh; }
+  header { display:flex; align-items:baseline; gap:10px; padding:8px 0 12px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:20px; margin:0 } header span { color:var(--muted); font-size:13px }
+  #log { flex:1; overflow-y:auto; padding:16px 0; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:85%; padding:10px 14px; border-radius:14px; white-space:pre-wrap; }
+  .user { align-self:flex-start; background:var(--brand); color:var(--brand-ink); border-bottom-right-radius:4px }
+  .bot { align-self:flex-end; background:var(--card); border:1px solid var(--line); border-bottom-left-radius:4px }
+  .meta { font-size:12px; color:var(--muted); margin-top:6px; direction:ltr; text-align:left }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; padding-bottom:10px }
+  .chips button { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:999px; padding:6px 12px; cursor:pointer; font:inherit; font-size:14px }
+  form { display:flex; gap:8px; padding-top:10px; border-top:1px solid var(--line) }
+  input { flex:1; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit }
+  form button { padding:0 18px; border:0; border-radius:12px; background:var(--brand); color:var(--brand-ink); font:inherit; cursor:pointer }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>مساعد كنز</h1><span>عروض وطلبات - عربي، مصري، فرانكو، English</span></header>
+  <div id="log" aria-live="polite"></div>
+  <div class="chips">
+    <button>عايز جيم رخيص في مدينة نصر</button>
+    <button>3ayez mat3am fe smou7a</button>
+    <button>ينفع أرجّع الكوبون؟</button>
+    <button>spa in Stanley under 600</button>
+  </div>
+  <form id="f"><input id="q" autocomplete="off" placeholder="اكتب سؤالك هنا…" aria-label="message"><button>إرسال</button></form>
+</main>
+<script>
+  let session = null;
+  const log = document.getElementById("log"), q = document.getElementById("q");
+  function add(text, cls, meta) {
+    const d = document.createElement("div"); d.className = "msg " + cls; d.textContent = text;
+    if (meta) { const m = document.createElement("div"); m.className = "meta"; m.textContent = meta; d.appendChild(m); }
+    log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+  }
+  async function send(text) {
+    if (!text.trim()) return;
+    add(text, "user"); q.value = "";
+    const pending = add("…", "bot");
+    try {
+      const r = await fetch("/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, session_id: session }) });
+      const j = await r.json(); session = j.session_id; pending.remove();
+      const tools = j.tool_calls.map(t => t.name).join(", ") || "no tools";
+      add(j.reply, "bot", `${j.provider} · ${j.model} · ${tools} · ${j.latency_ms} ms${j.guard.clean ? "" : " · guardrail"}`);
+    } catch (e) { pending.textContent = "حصل خطأ، جرّب تاني."; }
+  }
+  document.getElementById("f").addEventListener("submit", e => { e.preventDefault(); send(q.value); });
+  document.querySelectorAll(".chips button").forEach(b => b.addEventListener("click", () => send(b.textContent)));
+</script>
+</body>
+</html>

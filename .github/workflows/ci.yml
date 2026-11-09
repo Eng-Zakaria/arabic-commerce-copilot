@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# cloudkit (azure-local-lab) is a path dependency at ../azure-local-lab: check both out side by side.
+env:
+  LAB_REPO: ${{ vars.LAB_REPO || 'Eng-Zakaria/azure-local-lab' }}
+  COPILOT_DENSE: "0"          # no embedding endpoint in CI: lexical + slot retrieval
+  COPILOT_PROVIDERS: scripted # deterministic agent; live model evals run on demand
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: copilot } }
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: copilot }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ env.LAB_REPO }}", path: azure-local-lab }
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - run: uv run ruff check .
+      - name: unit + agent + API + MCP + Claude-adapter tests
+        run: uv run pytest -v
+      - name: retrieval eval gate (templated / handwritten / holdout)
+        run: uv run python -m copilot.eval.retrieval_eval --no-dense
+      - name: agent eval gate (tools, language, grounding, guardrails)
+        run: uv run python -m copilot.eval.agent_eval --providers scripted --gate
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: eval-reports, path: copilot/artifacts/eval* }
